@@ -1,6 +1,12 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import {
+  FormEvent,
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import {
@@ -115,7 +121,7 @@ const testimonials = [
       "The trust layer is excellent. We can trace the context behind each major development quickly.",
   },
   {
-    name: "Sofia Duran",
+    name: "Jemina Chen",
     alias: "Global Affairs Research Lead, Vantage Institute",
     quote:
       "Their regional explainers make cross-border news understandable for students and policy teams.",
@@ -127,7 +133,7 @@ const testimonials = [
       "Our teams now align faster because updates include context, risks, and expected trajectories in one place.",
   },
   {
-    name: "Aisha Rahman",
+    name: "Solin Raminisky",
     alias: "International Programs Director, Civic Frontier",
     quote:
       "All Time News helps our field teams make informed decisions without getting overwhelmed by fragmented sources.",
@@ -339,7 +345,8 @@ export function LandingPage() {
       if (!trimmed) return "Email is required.";
       if (trimmed.length > 160) return "Email must be within 160 characters.";
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(trimmed)) return "Please enter a valid email address.";
+      if (!emailRegex.test(trimmed))
+        return "Please enter a valid email address.";
       return "";
     }
 
@@ -439,7 +446,8 @@ export function LandingPage() {
     if (formAvailability !== "available") {
       setStatus("error");
       setSubmissionMessage(
-        availabilityMessage || "Form is currently unavailable. Please try later.",
+        availabilityMessage ||
+          "Form is currently unavailable. Please try later.",
       );
       return;
     }
@@ -454,7 +462,9 @@ export function LandingPage() {
     setFieldErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) {
       setStatus("error");
-      setSubmissionMessage("Please resolve the highlighted fields and try again.");
+      setSubmissionMessage(
+        "Please resolve the highlighted fields and try again.",
+      );
       return;
     }
 
