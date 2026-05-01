@@ -732,7 +732,7 @@ export function LandingPage() {
                     alt={`${client.name} logo`}
                     width={220}
                     height={120}
-                    className="h-full w-full object-contain"
+                    className="h-full w-full object-contain opacity-80 saturate-0 contrast-110 transition duration-300 group-hover:opacity-100 group-hover:saturate-50 dark:opacity-75 dark:brightness-110 dark:contrast-125"
                   />
                 </div>
                 <p className="mt-3 text-center text-xs font-semibold tracking-wide text-slate-600 dark:text-slate-300">
