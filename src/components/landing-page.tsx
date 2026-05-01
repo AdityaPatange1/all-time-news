@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useMemo, useState, useSyncExternalStore } from "react";
+import { FormEvent, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import {
@@ -38,6 +38,9 @@ type ContactPayload = {
   organization: string;
   message: string;
 };
+
+type ContactField = keyof ContactPayload;
+type ContactFieldErrors = Partial<Record<ContactField, string>>;
 
 const features = [
   {
@@ -296,7 +299,17 @@ export function LandingPage() {
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "error"
   >("idle");
-  const [error, setError] = useState("");
+  const [submissionMessage, setSubmissionMessage] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<ContactFieldErrors>({});
+  const [touchedFields, setTouchedFields] = useState<
+    Partial<Record<ContactField, boolean>>
+  >({});
+  const [formAvailability, setFormAvailability] = useState<
+    "checking" | "available" | "unavailable"
+  >("checking");
+  const [availabilityMessage, setAvailabilityMessage] = useState(
+    "Checking form availability...",
+  );
 
   const [form, setForm] = useState<ContactPayload>({
     name: "",
@@ -313,10 +326,140 @@ export function LandingPage() {
   const isDark = isClient && resolvedTheme === "dark";
   const year = useMemo(() => new Date().getFullYear(), []);
 
+  function validateField(name: ContactField, value: string) {
+    const trimmed = value.trim();
+
+    if (name === "name") {
+      if (trimmed.length < 2) return "Please enter at least 2 characters.";
+      if (trimmed.length > 120) return "Name must be within 120 characters.";
+      return "";
+    }
+
+    if (name === "email") {
+      if (!trimmed) return "Email is required.";
+      if (trimmed.length > 160) return "Email must be within 160 characters.";
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(trimmed)) return "Please enter a valid email address.";
+      return "";
+    }
+
+    if (name === "organization") {
+      if (trimmed.length > 160)
+        return "Organization must be within 160 characters.";
+      return "";
+    }
+
+    if (trimmed.length < 15)
+      return "Please provide at least 15 characters for context.";
+    if (trimmed.length > 4000) return "Message must be within 4000 characters.";
+    return "";
+  }
+
+  function validateForm(payload: ContactPayload) {
+    const nextErrors: ContactFieldErrors = {};
+    (Object.keys(payload) as ContactField[]).forEach((field) => {
+      const error = validateField(field, payload[field]);
+      if (error) nextErrors[field] = error;
+    });
+    return nextErrors;
+  }
+
+  useEffect(() => {
+    if (!isClient) return;
+
+    let cancelled = false;
+
+    async function checkFormAvailability() {
+      try {
+        const response = await fetch("/api/contact/health", {
+          method: "GET",
+          cache: "no-store",
+        });
+        const result = (await response.json()) as {
+          available?: boolean;
+          error?: string;
+        };
+
+        if (cancelled) return;
+
+        if (response.ok && result.available) {
+          setFormAvailability("available");
+          setAvailabilityMessage("Form is live and ready for submissions.");
+          return;
+        }
+
+        setFormAvailability("unavailable");
+        setAvailabilityMessage(
+          result.error ?? "Form is currently unavailable. Please try later.",
+        );
+      } catch {
+        if (cancelled) return;
+        setFormAvailability("unavailable");
+        setAvailabilityMessage(
+          "Form connectivity check failed. Please try again shortly.",
+        );
+      }
+    }
+
+    void checkFormAvailability();
+    const interval = setInterval(() => {
+      void checkFormAvailability();
+    }, 30000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [isClient]);
+
+  function onFieldChange(field: ContactField, value: string) {
+    setForm((previous) => ({ ...previous, [field]: value }));
+
+    if (touchedFields[field]) {
+      const nextError = validateField(field, value);
+      setFieldErrors((previous) => ({
+        ...previous,
+        [field]: nextError || undefined,
+      }));
+    }
+  }
+
+  function onFieldBlur(field: ContactField) {
+    setTouchedFields((previous) => ({ ...previous, [field]: true }));
+    const nextError = validateField(field, form[field]);
+    setFieldErrors((previous) => ({
+      ...previous,
+      [field]: nextError || undefined,
+    }));
+  }
+
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (formAvailability !== "available") {
+      setStatus("error");
+      setSubmissionMessage(
+        availabilityMessage || "Form is currently unavailable. Please try later.",
+      );
+      return;
+    }
+
+    const nextErrors = validateForm(form);
+    setTouchedFields({
+      name: true,
+      email: true,
+      organization: true,
+      message: true,
+    });
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setStatus("error");
+      setSubmissionMessage("Please resolve the highlighted fields and try again.");
+      return;
+    }
+
     setStatus("loading");
-    setError("");
+    setSubmissionMessage("");
 
     try {
       const response = await fetch("/api/contact", {
@@ -332,9 +475,12 @@ export function LandingPage() {
 
       setStatus("success");
       setForm({ name: "", email: "", organization: "", message: "" });
+      setSubmissionMessage(
+        "Submission received successfully. Our editorial desk will respond within 24 business hours.",
+      );
     } catch (submissionError) {
       setStatus("error");
-      setError(
+      setSubmissionMessage(
         submissionError instanceof Error
           ? submissionError.message
           : "Unexpected error during submission.",
@@ -794,77 +940,170 @@ export function LandingPage() {
               <form
                 onSubmit={onSubmit}
                 className="grid gap-4 rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900 sm:p-6"
+                noValidate
               >
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <input
-                    required
-                    type="text"
-                    placeholder="Full name"
-                    value={form.name}
-                    onChange={(event) =>
-                      setForm((previous) => ({
-                        ...previous,
-                        name: event.target.value,
-                      }))
-                    }
-                    className="rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3 text-sm outline-none ring-sky-400 focus:ring-2 dark:border-slate-600 dark:bg-slate-800"
-                  />
-                  <input
-                    required
-                    type="email"
-                    placeholder="Professional email"
-                    value={form.email}
-                    onChange={(event) =>
-                      setForm((previous) => ({
-                        ...previous,
-                        email: event.target.value,
-                      }))
-                    }
-                    className="rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3 text-sm outline-none ring-sky-400 focus:ring-2 dark:border-slate-600 dark:bg-slate-800"
-                  />
+                  <div className="grid gap-1.5">
+                    <label
+                      htmlFor="contact-name"
+                      className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-600 dark:text-slate-300"
+                    >
+                      Full name
+                    </label>
+                    <input
+                      id="contact-name"
+                      name="name"
+                      required
+                      minLength={2}
+                      maxLength={120}
+                      autoComplete="name"
+                      type="text"
+                      placeholder="Jane Doe"
+                      value={form.name}
+                      onChange={(event) =>
+                        onFieldChange("name", event.target.value)
+                      }
+                      onBlur={() => onFieldBlur("name")}
+                      aria-invalid={Boolean(fieldErrors.name)}
+                      aria-describedby="contact-name-error"
+                      className="rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3 text-sm outline-none ring-sky-400 focus:ring-2 dark:border-slate-600 dark:bg-slate-800"
+                    />
+                    <p
+                      id="contact-name-error"
+                      className="min-h-5 text-xs text-red-600 dark:text-red-300"
+                    >
+                      {fieldErrors.name ?? ""}
+                    </p>
+                  </div>
+                  <div className="grid gap-1.5">
+                    <label
+                      htmlFor="contact-email"
+                      className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-600 dark:text-slate-300"
+                    >
+                      Professional email
+                    </label>
+                    <input
+                      id="contact-email"
+                      name="email"
+                      required
+                      maxLength={160}
+                      autoComplete="email"
+                      type="email"
+                      placeholder="you@company.com"
+                      value={form.email}
+                      onChange={(event) =>
+                        onFieldChange("email", event.target.value)
+                      }
+                      onBlur={() => onFieldBlur("email")}
+                      aria-invalid={Boolean(fieldErrors.email)}
+                      aria-describedby="contact-email-error"
+                      className="rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3 text-sm outline-none ring-sky-400 focus:ring-2 dark:border-slate-600 dark:bg-slate-800"
+                    />
+                    <p
+                      id="contact-email-error"
+                      className="min-h-5 text-xs text-red-600 dark:text-red-300"
+                    >
+                      {fieldErrors.email ?? ""}
+                    </p>
+                  </div>
                 </div>
-                <input
-                  type="text"
-                  placeholder="Organization"
-                  value={form.organization}
-                  onChange={(event) =>
-                    setForm((previous) => ({
-                      ...previous,
-                      organization: event.target.value,
-                    }))
-                  }
-                  className="rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3 text-sm outline-none ring-sky-400 focus:ring-2 dark:border-slate-600 dark:bg-slate-800"
-                />
-                <textarea
-                  required
-                  placeholder="Tell us about your requirement"
-                  rows={6}
-                  value={form.message}
-                  onChange={(event) =>
-                    setForm((previous) => ({
-                      ...previous,
-                      message: event.target.value,
-                    }))
-                  }
-                  className="rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3 text-sm outline-none ring-sky-400 focus:ring-2 dark:border-slate-600 dark:bg-slate-800"
-                />
+                <div className="grid gap-1.5">
+                  <label
+                    htmlFor="contact-organization"
+                    className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-600 dark:text-slate-300"
+                  >
+                    Organization (optional)
+                  </label>
+                  <input
+                    id="contact-organization"
+                    name="organization"
+                    type="text"
+                    maxLength={160}
+                    autoComplete="organization"
+                    placeholder="Your organization"
+                    value={form.organization}
+                    onChange={(event) =>
+                      onFieldChange("organization", event.target.value)
+                    }
+                    onBlur={() => onFieldBlur("organization")}
+                    aria-invalid={Boolean(fieldErrors.organization)}
+                    aria-describedby="contact-organization-error"
+                    className="rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3 text-sm outline-none ring-sky-400 focus:ring-2 dark:border-slate-600 dark:bg-slate-800"
+                  />
+                  <p
+                    id="contact-organization-error"
+                    className="min-h-5 text-xs text-red-600 dark:text-red-300"
+                  >
+                    {fieldErrors.organization ?? ""}
+                  </p>
+                </div>
+                <div className="grid gap-1.5">
+                  <label
+                    htmlFor="contact-message"
+                    className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-600 dark:text-slate-300"
+                  >
+                    Project brief
+                  </label>
+                  <textarea
+                    id="contact-message"
+                    name="message"
+                    required
+                    minLength={15}
+                    maxLength={4000}
+                    placeholder="Tell us about your requirement"
+                    rows={6}
+                    value={form.message}
+                    onChange={(event) =>
+                      onFieldChange("message", event.target.value)
+                    }
+                    onBlur={() => onFieldBlur("message")}
+                    aria-invalid={Boolean(fieldErrors.message)}
+                    aria-describedby="contact-message-error"
+                    className="rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3 text-sm outline-none ring-sky-400 focus:ring-2 dark:border-slate-600 dark:bg-slate-800"
+                  />
+                  <p
+                    id="contact-message-error"
+                    className="min-h-5 text-xs text-red-600 dark:text-red-300"
+                  >
+                    {fieldErrors.message ?? ""}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-sky-200/80 bg-sky-50/70 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-300">
+                  <span className="font-semibold">Form status:</span>{" "}
+                  {availabilityMessage}
+                </div>
                 <button
                   type="submit"
-                  disabled={status === "loading"}
+                  disabled={
+                    status === "loading" || formAvailability !== "available"
+                  }
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-sky-700 px-5 py-3 text-sm font-semibold text-white transition hover:bg-sky-800 disabled:cursor-not-allowed disabled:opacity-60 dark:bg-sky-600 dark:hover:bg-sky-500"
                 >
                   <Send className="h-4 w-4" />
-                  {status === "loading" ? "Submitting..." : "Send message"}
+                  {status === "loading"
+                    ? "Submitting..."
+                    : formAvailability === "checking"
+                      ? "Checking availability..."
+                      : formAvailability === "unavailable"
+                        ? "Form unavailable"
+                        : "Send message"}
                 </button>
 
                 {status === "success" ? (
-                  <p className="text-sm text-emerald-600 dark:text-emerald-400">
-                    Message received. Our editorial desk will respond shortly.
+                  <p
+                    role="status"
+                    aria-live="polite"
+                    className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+                  >
+                    {submissionMessage}
                   </p>
                 ) : null}
                 {status === "error" ? (
-                  <p className="text-sm text-red-600 dark:text-red-400">
-                    {error}
+                  <p
+                    role="alert"
+                    className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300"
+                  >
+                    {submissionMessage}
                   </p>
                 ) : null}
               </form>
