@@ -37,6 +37,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useTheme } from "next-themes";
+import { GetStartedButton } from "@/components/get-started-button";
 
 type ContactPayload = {
   name: string;
@@ -549,6 +550,7 @@ export function LandingPage() {
               human-readable intelligence so citizens, organizations, and
               leaders can stay aware and prepared.
             </p>
+            <GetStartedButton />
           </motion.div>
 
           <motion.div
