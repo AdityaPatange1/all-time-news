@@ -23,7 +23,6 @@ import {
   Languages,
   Layers,
   MessageCircleQuestion,
-  Moon,
   Network,
   PhoneCall,
   Quote,
@@ -31,13 +30,12 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
-  Sun,
   Target,
   TrendingUp,
   type LucideIcon,
 } from "lucide-react";
-import { useTheme } from "next-themes";
 import { GetStartedButton } from "@/components/get-started-button";
+import { LandingNavbar } from "@/components/landing-navbar";
 
 type ContactPayload = {
   name: string;
@@ -302,7 +300,6 @@ const highlightItem = {
 } as const;
 
 export function LandingPage() {
-  const { resolvedTheme, setTheme } = useTheme();
   const [status, setStatus] = useState<
     "idle" | "loading" | "success" | "error"
   >("idle");
@@ -330,7 +327,6 @@ export function LandingPage() {
     () => true,
     () => false,
   );
-  const isDark = isClient && resolvedTheme === "dark";
   const year = useMemo(() => new Date().getFullYear(), []);
 
   function validateField(name: ContactField, value: string) {
@@ -501,36 +497,7 @@ export function LandingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-sky-50 via-white to-slate-100 text-slate-900 transition-colors duration-300 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 dark:text-slate-100">
-      <header className="sticky top-0 z-40 border-b border-sky-200/70 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-6 sm:px-10">
-          <div>
-            <p className="text-lg font-semibold tracking-tight">
-              All Time News
-            </p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Global News Syndicate
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setTheme(isDark ? "light" : "dark")}
-            className="inline-flex items-center gap-2 rounded-full border border-sky-300 bg-sky-100 px-4 py-2 text-sm font-medium text-sky-900 transition hover:bg-sky-200 dark:border-sky-700 dark:bg-sky-900/50 dark:text-sky-100 dark:hover:bg-sky-900"
-            aria-label="Toggle color mode"
-            disabled={!isClient}
-          >
-            {isClient ? (
-              isDark ? (
-                <Sun className="h-4 w-4" />
-              ) : (
-                <Moon className="h-4 w-4" />
-              )
-            ) : (
-              <Moon className="h-4 w-4" />
-            )}
-            {isClient ? (isDark ? "Light mode" : "Dark mode") : "Toggle mode"}
-          </button>
-        </div>
-      </header>
+      <LandingNavbar />
 
       <main>
         <section className="mx-auto grid w-full max-w-6xl gap-10 px-6 py-20 sm:px-10 md:grid-cols-[1.2fr_0.8fr] md:py-24">

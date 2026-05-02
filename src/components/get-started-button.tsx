@@ -4,7 +4,12 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Loader2 } from "lucide-react";
 
-export function GetStartedButton() {
+type GetStartedButtonProps = {
+  /** Merged after base styles so you can override spacing or width (e.g. navbar). */
+  className?: string;
+};
+
+export function GetStartedButton({ className }: GetStartedButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
 
@@ -30,7 +35,7 @@ export function GetStartedButton() {
       type="button"
       onClick={() => void onClick()}
       disabled={loading}
-      className="mt-8 inline-flex items-center gap-2 rounded-full bg-sky-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-600/30 transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-sky-500 dark:hover:bg-sky-400"
+      className={`inline-flex items-center gap-2 rounded-full bg-sky-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-sky-600/30 transition hover:bg-sky-500 disabled:cursor-not-allowed disabled:opacity-70 dark:bg-sky-500 dark:hover:bg-sky-400 ${className ?? "mt-8"}`}
     >
       {loading ? (
         <>
